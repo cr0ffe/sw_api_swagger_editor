@@ -1,0 +1,653 @@
+openapi: '3.0.0'
+info:
+    title: SentryWire API
+    description: |-
+       More information is available at [sentrywire.com](https://www.sentrywire.com/)
+    contact:
+        name: SentryWire
+        email: chris.roffe@sentrywire.com
+        url: https://www.sentrywire.com/
+    version: '1.0.1'
+servers:
+    - url: https://{SentryWireHost}:{port}/v3
+      variables:
+        SentryWireHost:
+            default: demo
+            description: SentryWire host address
+        port:
+            default: '41395'
+paths:
+    /fmlogin:
+        post:
+            summary: Login to SentryWire unit
+            description: Returns a token that can be used to authenticate future calls.
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/LoginCredentials'
+                        examples:
+                            local-auth:
+                                value: {"username": "JohnDoe", "password": "p@lustr1s"}
+                            ldap-auth:
+                                value: {"username": "JohnDoe", "password": "p@lustr1s", "authtype": "ldap"}
+                            adfs-auth:
+                                value: {"username": "JohnDoe", "password": "p@lustr1s", "authtype": "adfs"}
+            responses:
+                    '200':
+                        description: Username and password are valid. The server sends a token to be used for all subsequent requests.
+                        content: 
+                            application/json:
+                                schema:
+                                    type: array
+                                example:
+                                    {
+                                        "rest_token": "12345678-9abc-defg-hijk-lmnopqrstuvwx"
+                                    }
+                    '400':
+                        description: username and/or password are missing.
+                        content: 
+                            application/json:
+                                schema:
+                                    $ref: '#/components/schemas/ServerError'
+                                example:
+                                    {
+                                        "message": "errorMissingRequiredParams"
+                                    }
+                    '401':
+                        description: Invalid username and/or password.
+                        content: 
+                            application/json:
+                                schema:
+                                    $ref: '#/components/schemas/ServerError'
+                                example:
+                                    {
+                                        "message": "invalid username and/or password"
+                                    }
+    /fmping:
+        get:
+            summary: Get the status of the SentryWire unit
+            description: Status of the SentryWire unit
+            parameters:
+              - in: query
+                name: rest_token
+                schema:
+                    type: string
+                required: true
+            responses:
+              '200':
+                description: rest_token is valid
+                content:
+                  application/json:
+                    schema:
+                      type: array
+                    example:
+                      {
+                        "ServerInfo": {
+                            "NodeName":"demo",
+                            "NodeIP":"127.0.0.1",
+                            "Upordown":"1",
+                            "Port":"[0:10 Gbps  1:Down  ]",
+                            "Status":"Running",
+                            "Duration":"115:11:42:00",
+                            "BeginTime":"2024-05-03 18:25:00",
+                            "EndTime":"2024-08-27 06:07:00",
+                            "License":"Evaluation","TimeZone":"UTC",
+                            "PreCaptureFilter":"Off",
+                            "VirtualStorage":"443.12T",
+                            "RealStorage":"359.00T",
+                            "Capturedrops":"0",
+                            "BeginTimeSeconds":"1714760700",
+                            "CaptureServerTime":"140110457469984",
+                            "Throughput":"0.02",
+                            "CompressionRatio":"1.23",
+                            "ClusterCount":"0",
+                            "tcppps":"2415",
+                            "udppps":"1363",
+                            "otherpps":"30",
+                            "totalpps":"3808",
+                            "LogDataCompressionRatio":"0.00",
+                            "PercentIOWait":"0.00",
+                            "LoadAverage":"16.57 14.95 14.85"},
+                        "FMNodes": [
+                                {
+                                    "authenticationmode":"",
+                                    "throughput":"0.00",
+                                    "nodename":"demo",
+                                    "node_ip":"192.168.0.1",
+                                    "UserName":"JohnDoe",
+                                    "Password":"",
+                                    "Token":"",
+                                    "groupname":"g1",
+                                    "port":"[0:10 Gbps  1:Down  ]",
+                                    "status":"Running",
+                                    "compressionratio":"1.23",
+                                    "virtualstorage":"443.12T",
+                                    "realstorage":"359.00T",
+                                    "begintime":"2024-05-03 18:25:00",
+                                    "endtime":"2024-08-27 06:07:00",
+                                    "license":"Evaluation",
+                                    "capturemode":"",
+                                    "precapturefilter":"Off",
+                                    "duration":"115:11:42:00",
+                                    "timezone":"UTC",
+                                    "serverinfo":"999:88:7:666:0:0.00:0.00:20.90 99.99 99.99",
+                                    "clusternodecount":"",
+                                    "other":"",
+                                    "serverip":"192.168.0.1",
+                                    "percentiowait":"",
+                                    "loadaverage":"",
+                                    "selected":false
+                                }
+                                ],
+                        "UserName":"",
+                        "Role":"",
+                        "Groups":[{"groupname":"g1","groupcount":1,"aggregate_throughput":0,"userslist":"Analyst","selected":false}],
+                        "AuthMode":"",
+                        "Version":"7.3.0.310-408.14r5.07",
+                        "UserRoles":"",
+                        "APIVersion":"1.4"
+                      }
+              '400':
+                description: rest_token is missing
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/ServerError'
+                    example:
+                      {
+                        "message": "rest_token is missing"
+                      }
+              '401':
+                description: rest_token is invalid
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/ServerError'
+                    example: 
+                      {
+                        "message": "errorAuthorizationFailure"
+                      }
+
+    /fmsearch:
+        post:
+            summary: Create a KQL search
+            description: |-
+                Start a new search on each node monitored by the FM. If the request is valid, the FM server returns three URLs for each node: one to check search status, one to get the zip file ofpcaps collected by the FM and one to get the metadata related to the search.
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SearchQuery'
+                        examples:
+                          Port-80:
+                            value: {"rest_token":"12345678-9abc-defg-hijk-lmnopqrstuvw","search_name":"example_search","begin_time":"2024-07-01 07:00:00","end_time":"2024-07-01 08:00:00","search_filter":"dst_port:80","max_packets":"1000"}
+            responses:
+                '200':
+                    description: |-
+                      All the required parameters have been supplied/valid. The server sends a set of links with additional search information.
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SearchResponse'
+                            example:
+                                [
+                                    {
+                                        "checkstatus": "https://sentrywire.example:41395/v3/fmsearch/status?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search",
+                                        "getpcaps": "https://sentrywire.example:41395/v3/fmsearch/data?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search&type=1",
+                                        "metadata": "https://sentrywire.example:41395/v3/fmsearch/data?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search&type=LogData",
+                                        "objects": "https://sentrywire.example:41395/v3/fmsearch/data?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search&type=SearchObjects"
+                                    }
+                                ]
+                '400':
+                    description: A required parameter is missing or one or more parameters is invalid
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorMissingRequiredParams"
+                                }
+                '401':
+                    description: Invalid rest_token
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorAuthorizationFailure"
+                                }
+        delete:
+            summary: Delete a search
+            description: Delete all data associated with a completed search.
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteSearchQuery'
+            responses:
+                '200':
+                    description: rest_token is valid; searchname refers to a valid search that has been completed/stopped
+                    content: 
+                        application/json:
+                            schema:
+                                type: array
+                            example:
+                                {
+                                    "message": "deleted search JohnDoe_1687041672_1_example_search"
+                                }
+                '202':
+                    description: searchname refers to a search in progress.
+                    content: 
+                        application/json:
+                            schema:
+                                type: array
+                '400':
+                    description: A required parameter is missing or one or more parameters is invalid
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorMissingRequiredParams"
+                                }
+                '401':
+                    description: rest_token and/or searchname are invalid
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorAuthorizationFailure"
+                                }
+    /fmsearch/bpf:
+        post:
+            summary: Create a BPF search
+            description: |-
+                Start a new search on each node monitored by the FM. If the request is valid, the FM server returns three URLs for each node: one to check search status, one to get the zip file ofpcaps collected by the FM and one to get the metadata related to the search.
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SearchQuery'
+                        examples:
+                          TCP-or-UDP:
+                            value: {"rest_token":"12345678-9abc-defg-hijk-lmnopqrstuvw","search_name":"example_search","begin_time":"2024-07-01 07:00:00","end_time":"2024-07-01 08:00:00","search_filter":"tcp or udp","max_packets":"1000"}
+            responses:
+                    '200':
+                        description: All the required parameters have been supplied/valid. The server sends a set of links with additional search information.
+                        content: 
+                            application/json:
+                                schema:
+                                  $ref: '#/components/schemas/SearchResponse'
+                                example:
+                                    [
+                                      {
+                                        "checkstatus": "https://sentrywire.example:41395/v3/fmsearch/status?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search",
+                                        "getpcaps": "https://sentrywire.example:41395/v3/fmsearch/data?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search&type=1",
+                                        "metadata": "https://sentrywire.example:41395/v3/fmsearch/data?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search&type=LogData",
+                                        "objects": "https://sentrywire.example:41395/v3/fmsearch/data?rest_token=12345678-9abc-defg-hijk-lmnopqrstuvw&searchname=JohnDoe_1687041672_1_example_search&type=SearchObjects"
+                                      }
+                                    ]
+                    '400':
+                        description: A required parameter is missing or one or more parameters is invalid
+                        content: 
+                            application/json:
+                                schema:
+                                    $ref: '#/components/schemas/ServerError'
+                                example:
+                                    {
+                                        "message": "errorMissingRequiredParams"
+                                    }
+                    '401':
+                        description: Invalid rest_token
+                        content: 
+                            application/json:
+                                schema:
+                                    $ref: '#/components/schemas/ServerError'
+                                example:
+                                    {
+                                        "message": "errorAuthorizationFailure"
+                                    }
+    /fmsearch/status:
+        get:
+            summary: Get the status of the search
+            parameters:
+              - in: query
+                name: rest_token
+                schema:
+                    type: string
+                required: true
+              - in: query
+                name: searchname
+                schema:
+                    type: string
+                required: true
+              - in: query
+                name: nodename
+                schema:
+                    type: string
+                required: true
+            responses:
+                '200':
+                    description: JSON object containing status of search
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SearchStatusResponse'
+                            example:
+                                {
+                                    "SearchName":"JohnDoe_1724766253_1_example_search",
+                                    "SubmittedTime":"1724766257146",
+                                    "BeginTime":"2024-08-26 09:44:13",
+                                    "EndTime":"2024-08-26 09:44:13",
+                                    "SearchFilter":"dst_port:80",
+                                    "MaxPacketCount":"100",
+                                    "SearchResult":"Packets:0 Size:0.00 KB",
+                                    "MaxChunk":"0",
+                                }
+                '400':
+                    description: A required parameter is missing or one or more parameters is invalid
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorMissingRequiredParams"
+                                }
+                '401':
+                    description: Invalid rest_token or searchname
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorAuthorizationFailure"
+                                }
+    /fmsearch/data:
+        get:
+            summary: Download associated data/objects of a search
+            description: Download a associated PCAPs, list of PCAPs, objects, list of objects, or log data associated with the specified search.
+            parameters:
+              - in: query
+                name: rest_token
+                schema:
+                    type: string
+                required: true
+              - in: query
+                name: searchname
+                schema:
+                    type: string
+                required: true
+              - in: query
+                name: type
+                schema:
+                    type: [string, integer]
+                required: true
+                examples:
+                    PCAP-List:
+                        value: PcapList
+                    PCAP-File:
+                        value: 1
+                    Log-Data: 
+                        value: LogData
+                    Objects-List:
+                        value: ObjectList
+                    Objects:
+                        value: SearchObjects
+              - in: query
+                name: nodename
+                schema:
+                    type: string
+                required: true
+            responses:
+                '200':
+                    description: |-
+                        All the required parameters have been supplied and valid. The server sends zip file of the requested PCAP list or PCAP file.
+                    content: 
+                        application/zip:
+                            schema:
+                                type: string
+                                format: binary
+                '400':
+                    description: A required parameter is missing or one or more parameters is invalid
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorMissingRequiredParams"
+                                }
+                '401':
+                    description: Invalid rest_token or searchname
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorAuthorizationFailure"
+                                }
+    /fmsearch/pending:
+        get:
+            summary: Get a list of the pending searches
+            parameters:
+              - in: query
+                name: rest_token
+                schema:
+                    type: string
+                required: true
+              - in: query
+                name: count
+                schema:
+                    type: integer
+                required: false
+                description: Maximum number of pending searches to return
+            responses:
+                '200':
+                    description: Searchname refers to a valid search
+                    content: 
+                        application/json:
+                            schema:
+                                type: array
+                            example: 
+                               [
+                                    {
+                                        "SearchKey": "JohnDoe_1724766921_3_example_searchdemo",
+                                        "SearchName": "JohnDoe_1724766921_3_example",
+                                        "SubmittedTime": "1724766921",
+                                        "Begintime": "2024-08-26 09:55:20",
+                                        "Endtime": "2024-08-27 08:55:20",
+                                        "SearchFilter": "dst_port:80",
+                                        "NodeName": "sw160",
+                                        "SearchStatus": "Pending",
+                                        "SearchType": "kqlsearch"
+                                    }
+                                ]
+                '400':
+                    description: A required parameter is missing or one or more parameters is invalid
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorMissingRequiredParams"
+                                }
+                '401':
+                    description: Invalid rest_token or searchname
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorAuthorizationFailure"
+                                }
+    /fmsearch/completed:
+        get:
+            summary: Get a list of completed searches
+            parameters:
+              - in: query
+                name: rest_token
+                schema:
+                    type: string
+                required: true
+              - in: query
+                name: count
+                schema:
+                    type: integer
+                required: false
+                description: Maximum number or completed searches to return
+            responses:
+                '200':
+                    description: List of completed searches
+                    content: 
+                        application/json:
+                            schema:
+                                type: array
+                            example:
+                                [
+                                    {
+                                    "SearchKey": "JohnDoe_1724766921_3_example_searchdemo",
+                                    "SearchPorts":"",
+                                    "CaseName":"",
+                                    "SearchName":"JohnDoe_1724766921_3_example_search",
+                                    "SubmittedTime":"1724766921",
+                                    "BeginTime":"2024-08-26 09:55:20",
+                                    "EndTime":"2024-08-27 08:55:20",
+                                    "SearchFilter":"dst_port:80",
+                                    "MaxPacketCount":"100",
+                                    "SearchResult":"Packets:0 Size:0.00 KB",
+                                    "MaxChunk":"",
+                                    "NodeName":"demo",
+                                    }
+                                ]
+                '400':
+                    description: A required parameter is missing or one or more parameters is invalid
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorMissingRequiredParams"
+                                }
+                '401':
+                    description: Invalid rest_token or searchname
+                    content: 
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServerError'
+                            example:
+                                {
+                                    "message": "errorAuthorizationFailure"
+                                }
+components:
+    schemas:
+        ServerError:
+            type: 'object'
+            required:
+              - message
+            properties:
+                message:
+                    type: string
+                    description: Information about error
+        LoginCredentials:
+            type: 'object'
+            required:
+                - username
+                - password
+            properties:
+                username:
+                    type: string
+                password:
+                    type: string
+                authtype:
+                    type: string
+                    enum:
+                        - local
+                        - ldap
+                        - adfs
+        SearchQuery:
+            type: 'object'
+            required:
+                - rest_token
+                - search_name
+                - search_filter
+                - begin_time
+                - end_time
+            properties:
+                rest_token:
+                    type: string
+                search_name:
+                    type: string
+                search_filter:
+                    type: string
+                begin_time:
+                    type: string
+                    description: |-
+                        UTC time – YYYY-MM-DD hh:mm:ss
+                end_time:
+                    type: string
+                    description: |-
+                        UTC time – YYYY-MM-DD hh:mm:ss
+                max_packets:
+                    type: integer
+                targetlist:
+                    type: string
+                fmgroups:
+                    type: string
+        SearchResponse:
+            type: 'object'
+            properties:
+              checkstatus:
+                type: string
+              getpcaps:
+                type: string
+              metadata:
+                type: string
+              objects:
+                type: string
+        DeleteSearchQuery:
+            type: 'object'
+            required:
+                - rest_token
+                - searchname
+            properties:
+                rest_token:
+                    type: string
+                searchname:
+                    type: string
+        SearchStatusResponse:
+            type: 'object'
+            properties:
+                SearchName:
+                    type: string
+                SubmittedTime:
+                    type: integer
+                BeginTime:
+                    type: string
+                EndTime:
+                    type: string
+                SearchFilter:
+                    type: string
+                MaxPacketCount:
+                    type: integer
+                SearchResult:
+                    type: string
+                MaxChunk:
+                    type: integer
+                NodeName:
+                    type: string
